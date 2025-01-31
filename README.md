@@ -1,7 +1,7 @@
-SMARTBID: Subasta Inteligente
+WINNINGBID: Subasta Inteligente
 
 📌 Descripción del Proyecto
-SMARTBID es una plataforma de subastas en línea que permite a los usuarios comprar y vender productos en tiempo real de forma fácil y segura. Nuestro objetivo es crear una experiencia de subasta interactiva, accesible desde dispositivos móviles, que facilite la participación de los usuarios en subastas dinámicas y transparentes.
+WINNINGBID es una plataforma de subastas en línea que permite a los usuarios comprar y vender productos en tiempo real de forma fácil y segura. Nuestro objetivo es crear una experiencia de subasta interactiva, accesible desde dispositivos móviles, que facilite la participación de los usuarios en subastas dinámicas y transparentes.
 
 Con esta app, los usuarios podrán:
 
@@ -11,7 +11,7 @@ Obtener notificaciones instantáneas sobre el estado de sus pujas.
 🎯 Problemática
 Las plataformas de subastas tradicionales suelen tener interfaces complicadas y no siempre ofrecen una experiencia óptima en dispositivos móviles. Además, muchos sistemas de subasta carecen de la transparencia necesaria para generar confianza en los usuarios.
 
-Con SMARTBID, queremos resolver estos problemas ofreciendo una aplicación fácil de usar, con actualizaciones en tiempo real y un sistema transparente para pujas y compras.
+Con WINNINGBID, queremos resolver estos problemas ofreciendo una aplicación fácil de usar, con actualizaciones en tiempo real y un sistema transparente para pujas y compras.
 
 ✨ Características Principales
 
@@ -31,4 +31,4 @@ Despliegue: Heroku para el backend y servicios de notificaciones push (como Fire
 Requisitos Previos
 
 Node.js instalado (versión 16 o superior).
-MongoDB configurado y en funcionamiento (se puede usar MongoDB Atlas para la base de datos en la nube)
+MongoDB configurado y en funcionamiento (se puede usar MongoDB Atlas para la base de datos en la nube.
