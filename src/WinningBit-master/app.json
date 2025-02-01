@@ -19,13 +19,19 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.killerexpert10.winningbid"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "assetBundlePatterns": [
       "assets/**/*"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "c2749124-bf5e-4681-88cc-d13dc6696ed5"
+      }
+    }
   }
 }

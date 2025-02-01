@@ -65,7 +65,7 @@ export const UserProductsProvider = ({ children }) => {
   const productId = auctionId;	
   console.log('Eliminando producto:', productId);
   try {
-    const response = await api.delete(`/bids/${productId}`);
+    const response = await api.delete(`/products/${productId}`);
 
     if (response.status === 200) {
       setUserProducts((prevProducts) => prevProducts.filter(product => product.id !== productId));

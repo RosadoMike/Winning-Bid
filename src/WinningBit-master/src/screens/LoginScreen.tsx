@@ -24,7 +24,7 @@ export default function LoginScreen({ navigation }) {
 
     setLoading(true);
     try {
-      const response = await fetch('https://winning-bid.onrender.com/api/users/login', {
+      const response = await fetch('https://winning-bid-app.onrender.com/api/users/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
