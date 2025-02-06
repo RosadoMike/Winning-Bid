@@ -3,7 +3,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const api = axios.create({
-  baseURL: 'https://winning-bid-app.onrender.com/apia', // Cambia esto por tu URL de API
+  baseURL: 'https://winning-bid-app.onrender.com/api', // Cambia esto por tu URL de API
   withCredentials: true,
 });
 
