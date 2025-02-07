@@ -37,4 +37,4 @@ MongoDB configurado y en funcionamiento (se puede usar MongoDB Atlas para la bas
 Integrantes 
 Josue Uicab-Afthercaf
 Fernando
-Miguel Rosado
+Miguel Rosado-RosadoMike
