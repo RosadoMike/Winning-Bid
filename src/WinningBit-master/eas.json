@@ -18,9 +18,6 @@
         "buildType": "apk",
         "gradleCommand": ":app:assembleRelease",
         "autoIncrement": true
-      },
-      "env": {
-        "NODE_ENV": "production"
       }
     },
     "production": {

@@ -50,6 +50,8 @@ export default function MyAuctionsScreen({ navigation }) {
     productName: '',
     description: '',
     category: '',
+    type: 'subasta',
+    auctionType: 'normal',
     startingPrice: '',
     auctionEndTime: new Date(),
   });
@@ -84,12 +86,12 @@ export default function MyAuctionsScreen({ navigation }) {
       });
 
       if (!result.canceled) {
-        const newImages = result.assets.map(asset => ({
+        const newImages = result.assets.map((asset) => ({
           uri: asset.uri,
           type: 'image/jpeg',
           name: asset.uri.split('/').pop(),
         }));
-        setImages(prevImages => [...prevImages, ...newImages]);
+        setImages((prevImages) => [...prevImages, ...newImages]);
       }
     } catch (error) {
       console.error('Error picking images:', error);
@@ -98,11 +100,11 @@ export default function MyAuctionsScreen({ navigation }) {
   };
 
   const removeImage = (index) => {
-    setImages(prevImages => prevImages.filter((_, i) => i !== index));
+    setImages((prevImages) => prevImages.filter((_, i) => i !== index));
   };
 
   const handleInputChange = (name, value) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [name]: value,
     }));
@@ -112,9 +114,9 @@ export default function MyAuctionsScreen({ navigation }) {
     setDatePickerVisibility(false);
 
     if (selectedDate) {
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
-        auctionEndTime: selectedDate
+        auctionEndTime: selectedDate,
       }));
     }
   };
@@ -140,14 +142,15 @@ export default function MyAuctionsScreen({ navigation }) {
 
     setLoading(true);
     const formDataToSend = new FormData();
-
     formDataToSend.append('name', formData.productName);
     formDataToSend.append('description', formData.description);
     formDataToSend.append('category', formData.category);
-    formDataToSend.append('type', 'subasta');
+    formDataToSend.append('type', formData.type);
+    formDataToSend.append('auctionType', formData.auctionType);
     formDataToSend.append('startingPrice', formData.startingPrice);
     formDataToSend.append('auctionEndTime', formData.auctionEndTime.toISOString());
 
+    // Añadir imágenes
     images.forEach((image) => {
       formDataToSend.append('images', {
         uri: image.uri,
@@ -174,41 +177,40 @@ export default function MyAuctionsScreen({ navigation }) {
       productName: '',
       description: '',
       category: '',
+      type: 'subasta',
+      auctionType: 'normal',
       startingPrice: '',
       auctionEndTime: new Date(),
     });
     setImages([]);
   };
 
-
   const handleDeleteAuction = (auctionId) => {
     Alert.alert(
-      "Eliminar Subasta",
-      "¿Estás seguro que deseas eliminar esta subasta?",
+      'Eliminar Subasta',
+      '¿Estás seguro que deseas eliminar esta subasta?',
       [
         {
-          text: "Cancelar",
-          style: "cancel"
+          text: 'Cancelar',
+          style: 'cancel',
         },
         {
-          text: "Eliminar",
-          style: "destructive",
+          text: 'Eliminar',
+          style: 'destructive',
           onPress: async () => {
             try {
               setLoading(true);
-              // Assuming you have a deleteProduct function in your context
               await deleteProduct(auctionId);
-              Alert.alert("Éxito", "Subasta eliminada correctamente");
-              // Reload the list of products
+              Alert.alert('Éxito', 'Subasta eliminada correctamente');
               await loadUserProducts();
             } catch (error) {
               console.error('Error eliminando la subasta:', error);
-              Alert.alert("Error", "No se pudo eliminar la subasta");
+              Alert.alert('Error', 'No se pudo eliminar la subasta');
             } finally {
               setLoading(false);
             }
-          }
-        }
+          },
+        },
       ]
     );
   };
@@ -218,11 +220,14 @@ export default function MyAuctionsScreen({ navigation }) {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.primary} />
+      <View style={styles.header1}>
+        <Text style={styles.title1}>WinningBid</Text>
+        <TouchableOpacity 
+          style={styles.menuButton}
+          onPress={() => navigation.openDrawer()}
+        >
+          <Ionicons name="menu" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.title}>Mis Subastas</Text>
       </View>
 
       <View style={styles.tabContainer}>
@@ -281,7 +286,7 @@ export default function MyAuctionsScreen({ navigation }) {
           ))}
         </ScrollView>
       ) : (
-        <ScrollView 
+        <ScrollView
           style={styles.formContainer}
           showsVerticalScrollIndicator={false}
         >
@@ -316,8 +321,8 @@ export default function MyAuctionsScreen({ navigation }) {
             value={formData.startingPrice}
             onChangeText={(text) => handleInputChange('startingPrice', text)}
           />
-          
-          <TouchableOpacity 
+ 
+          <TouchableOpacity
             style={styles.dateButton}
             onPress={showDatePickerComponent}
           >
@@ -326,23 +331,23 @@ export default function MyAuctionsScreen({ navigation }) {
             </Text>
           </TouchableOpacity>
 
-      <DateTimePickerModal
-        isVisible={isDatePickerVisible}
-        mode="datetime"
-        onConfirm={handleDateChange}
-        onCancel={() => setDatePickerVisibility(false)}
-      />
+          <DateTimePickerModal
+            isVisible={isDatePickerVisible}
+            mode="datetime"
+            onConfirm={handleDateChange}
+            onCancel={() => setDatePickerVisibility(false)}
+          />
 
-          <TouchableOpacity 
-            style={styles.imagePickerButton} 
+          <TouchableOpacity
+            style={styles.imagePickerButton}
             onPress={pickImages}
           >
             <Ionicons name="camera" size={24} color={COLORS.primary} />
             <Text style={styles.imagePickerText}>Seleccionar Imágenes</Text>
           </TouchableOpacity>
 
-          <ScrollView 
-            horizontal 
+          <ScrollView
+            horizontal
             style={styles.imagePreviewContainer}
             showsHorizontalScrollIndicator={false}
           >
@@ -362,11 +367,8 @@ export default function MyAuctionsScreen({ navigation }) {
             ))}
           </ScrollView>
 
-          <TouchableOpacity 
-            style={[
-              styles.submitButton,
-              loading && { opacity: 0.7 }
-            ]}
+          <TouchableOpacity
+            style={[styles.submitButton, loading && { opacity: 0.7 }]}
             onPress={handleSubmit}
             disabled={loading}
           >
@@ -386,41 +388,77 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },  percentageButton: {
+    flex: 1,
+    backgroundColor: "#6C5CE7",
+    padding: 8,
+    borderRadius: 8,
+    alignItems: "center",
+    marginHorizontal: 4,
+  },
+  percentageButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "bold",
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    padding: SPACING.sm,
     backgroundColor: COLORS.white,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  header1: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 50 : 30,
+    paddingBottom: 16,
+    backgroundColor: '#1a3b6e',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
   backButton: {
     padding: SPACING.xs,
+    borderRadius: SPACING.xs,
   },
+  
   title: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '600',
     color: COLORS.text,
-    marginLeft: SPACING.md,
+    marginLeft: SPACING.sm,
+  },
+  menuButton: {
+    padding: 8,
   },
   tabContainer: {
     flexDirection: 'row',
     backgroundColor: COLORS.white,
-    padding: SPACING.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    padding: SPACING.xs,
+    gap: SPACING.xs,
   },
   tab: {
     flex: 1,
-    padding: SPACING.md,
+    padding: SPACING.sm,
     alignItems: 'center',
     borderRadius: 8,
+    backgroundColor: COLORS.background,
   },
   activeTab: {
     backgroundColor: COLORS.primary,
+    elevation: 2,
   },
   tabText: {
+    fontSize: 14,
     color: COLORS.text,
     fontWeight: '500',
   },
@@ -429,135 +467,168 @@ const styles = StyleSheet.create({
   },
   auctionsContainer: {
     flex: 1,
-    padding: SPACING.md,
+    padding: SPACING.xs,
   },
   formContainer: {
     flex: 1,
-    padding: SPACING.md,
+    padding: SPACING.xs,
+  },
+  title1: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#fff',
   },
   input: {
     backgroundColor: COLORS.white,
     borderRadius: 8,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
+    padding: SPACING.sm,
+    marginBottom: SPACING.sm,
     borderWidth: 1,
     borderColor: COLORS.border,
     color: COLORS.text,
+    fontSize: 14,
   },
   textArea: {
-    height: 100,
+    height: 80,
     textAlignVertical: 'top',
   },
   dateButton: {
     backgroundColor: COLORS.white,
     borderRadius: 8,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
+    padding: SPACING.sm,
+    marginBottom: SPACING.sm,
     borderWidth: 1,
     borderColor: COLORS.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   dateButtonText: {
     color: COLORS.text,
-  },
-  iosDatePicker: {
-    backgroundColor: COLORS.white,
-    marginBottom: SPACING.md,
+    fontSize: 14,
   },
   imagePickerButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.primary,
     borderRadius: 8,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    padding: SPACING.sm,
+    marginBottom: SPACING.sm,
   },
   imagePickerText: {
-    marginLeft: SPACING.sm,
-    color: COLORS.primary,
+    marginLeft: SPACING.xs,
+    color: COLORS.white,
     fontWeight: '500',
+    fontSize: 14,
   },
   imagePreviewContainer: {
     flexDirection: 'row',
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.sm,
   },
   imagePreview: {
-    marginRight: SPACING.sm,
+    marginRight: SPACING.xs,
     position: 'relative',
   },
   previewImage: {
-    width: 100,
-    height: 100,
+    width: 80,
+    height: 80,
     borderRadius: 8,
   },
   removeImageButton: {
     position: 'absolute',
-    top: -10,
-    right: -10,
+    top: -6,
+    right: -6,
     backgroundColor: COLORS.white,
     borderRadius: 12,
-},
-submitButton: {
+    padding: 2,
+  },
+  submitButton: {
     backgroundColor: COLORS.primary,
     borderRadius: 8,
-    padding: SPACING.md,
+    padding: SPACING.sm,
     alignItems: 'center',
-    marginBottom: SPACING.xl,
-},
-submitButtonText: {
+    marginBottom: SPACING.md,
+    elevation: 2,
+  },
+  submitButtonText: {
     color: COLORS.white,
     fontWeight: '600',
-    fontSize: 16,
-},
-auctionCard: {
+    fontSize: 15,
+  },
+  auctionCard: {
     backgroundColor: COLORS.white,
     borderRadius: 8,
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.sm,
     overflow: 'hidden',
     elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: {
-        width: 0,
-        height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-},
-auctionImage: {
+  },
+  auctionImage: {
     width: '100%',
-    height: 200,
-},
-auctionDetails: {
-    padding: SPACING.md,
-},
-auctionTitle: {
-    fontSize: 18,
+    height: 160,
+  },
+  auctionDetails: {
+    padding: SPACING.sm,
+  },
+  auctionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.xs,
+  },
+  auctionTitle: {
+    fontSize: 16,
     fontWeight: '600',
     color: COLORS.text,
-    marginBottom: SPACING.xs,
-},
-auctionDescription: {
+    flex: 1,
+    marginRight: SPACING.xs,
+  },
+  auctionDescription: {
     color: COLORS.textLight,
-    marginBottom: SPACING.sm,
-},
-auctionPrice: {
-    fontSize: 16,
+    marginBottom: SPACING.xs,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  auctionPrice: {
+    fontSize: 15,
     fontWeight: '500',
     color: COLORS.primary,
     marginBottom: SPACING.xs,
-},
-auctionEndTime: {
+  },
+  auctionEndTime: {
     color: COLORS.textLight,
-},
-auctionHeader: {
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  marginBottom: SPACING.xs,
-},
-deleteButton: {
-  padding: SPACING.xs,
-},
+    fontSize: 12,
+  },
+  deleteButton: {
+    padding: SPACING.xs,
+  },
+  pujasTitle: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: COLORS.text,
+    marginBottom: SPACING.sm,
+    marginTop: SPACING.sm,
+  },
+  pujasInputContainer: {
+    gap: SPACING.sm,
+    backgroundColor: COLORS.white,
+    padding: SPACING.sm,
+    borderRadius: 8,
+    marginBottom: SPACING.sm,
+  },
+  pujaInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  pujaLabel: {
+    fontSize: 14,
+    color: COLORS.text,
+    width: '30%',
+  },
+  pujaInput: {
+    width: '65%',
+    marginBottom: 0,
+    backgroundColor: COLORS.background,
+  },
 });

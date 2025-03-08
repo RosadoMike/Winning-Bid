@@ -1,5 +1,4 @@
-import axios from 'axios';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useContext } from "react";
 import {
   View,
   Text,
@@ -9,29 +8,91 @@ import {
   TouchableOpacity,
   FlatList,
   ActivityIndicator,
-  Modal,
-  Animated,
-  Easing,
-} from 'react-native';
-import { Picker } from '@react-native-picker/picker';
-import { MaterialIcons, Ionicons, FontAwesome } from '@expo/vector-icons';
+  Alert,
+  StatusBar,
+  Platform,
+  Dimensions,
+} from "react-native";
+import { Picker } from "@react-native-picker/picker";
+import { MaterialIcons, Ionicons, FontAwesome } from "@expo/vector-icons";
+import io from "socket.io-client";
+import { AuthContext } from "./Providers/AuthContext";
+import api from "./api/api"; // Asegúrate de que la ruta sea correcta
+
+const { width } = Dimensions.get("window");
+const CARD_MARGIN = 16;
+const CARD_WIDTH = width - CARD_MARGIN * 2;
 
 export default function HomeScreen({ navigation }) {
-  const [selectedType, setSelectedType] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedType, setSelectedType] = useState("");
+  const [userData, setUserData] = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState("");
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(1);
+  const { userId } = useContext(AuthContext);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState(null);
-  const [bidModalVisible, setBidModalVisible] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState(null);
-  const [bidAmount, setBidAmount] = useState('');
-  const [bidError, setBidError] = useState('');
-  const [fadeAnim] = useState(new Animated.Value(0));
+  const [isBidding, setIsBidding] = useState(false); // Estado para controlar la puja en progreso
+  const [socket, setSocket] = useState(null);
+  const [bidAmount, setBidAmount] = useState("");
+  const [bidPercentages, setBidPercentages] = useState([10, 15, 20]); // Valores predeterminados
+  const [categories, setCategories] = useState([]); // Estado para almacenar las categorías disponibles
 
+  useEffect(() => {
+    const newSocket = io("https://winning-bid-app.onrender.com");
+    setSocket(newSocket);
+
+    // Escuchar nuevos productos
+    newSocket.on("newProduct", (newProduct) => {
+      setProducts((prevProducts) => [newProduct, ...prevProducts]);
+    });
+
+    newSocket.on("bidUpdate", (data) => {
+      setProducts((prevProducts) =>
+        prevProducts.map((product) => {
+          if (product._id === data.productId) {
+            return {
+              ...product,
+              currentPrice: data.currentPrice,
+            };
+          }
+          return product;
+        })
+      );
+    });
+
+    newSocket.on("auctionTimeUpdate", (data) => {
+      setProducts((prevProducts) =>
+        prevProducts.map((product) => {
+          if (product._id === data.productId) {
+            return {
+              ...product,
+              auctionEndTime: data.auctionEndTime,
+              status: data.status,
+            };
+          }
+          return product;
+        })
+      );
+    });
+
+    return () => {
+      if (newSocket) {
+        newSocket.disconnect();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (socket && products.length > 0) {
+      products.forEach((product) => {
+        socket.emit("joinRoom", product._id);
+      });
+    }
+  }, [socket, products]);
 
   const fetchProducts = async (currentPage) => {
     if (loading || !hasMore) return;
@@ -40,315 +101,377 @@ export default function HomeScreen({ navigation }) {
     setError(null);
 
     try {
-      // Add 1 second delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      const response = await axios.get('https://winning-bid-app.onrender.com/api/products', {
-        params: {
-          page: currentPage,
-          type: 'subasta',
-          category: selectedCategory,
-          limit: 10,
-        },
-      });
+      const response = await api.get(
+        "/products",
+        {
+          params: {
+            page: currentPage,
+            type: "subasta",
+            ...(selectedCategory &&
+              selectedCategory !== "" && { category: selectedCategory }),
+            limit: 10,
+          },
+        }
+      );
 
       const newProducts = response.data?.products || response.data || [];
 
       if (!Array.isArray(newProducts)) {
-        setError('Invalid data format received');
+        setError("Invalid data format received");
         setHasMore(false);
         return;
       }
 
       const uniqueNewProducts = newProducts.filter(
         (newProduct) =>
-          !products.some((existingProduct) => existingProduct._id === newProduct._id)
+          !products.some(
+            (existingProduct) => existingProduct._id === newProduct._id
+          )
       );
 
-      if (uniqueNewProducts.length === 0) {
-        setHasMore(false);
+      if (currentPage === 1) {
+        setProducts(newProducts);
       } else {
-        setProducts((prevProducts) =>
-          currentPage === 1 ? uniqueNewProducts : [...prevProducts, ...uniqueNewProducts]
-        );
-        setPage(currentPage);
+        setProducts((prevProducts) => [...prevProducts, ...uniqueNewProducts]);
       }
+
+      const uniqueCategories = Array.from(
+        new Set(newProducts.map((product) => product.category).filter(Boolean))
+      ).sort();
+
+      setCategories((prevCategories) => {
+        const mergedCategories = Array.from(
+          new Set([...prevCategories, ...uniqueCategories])
+        );
+        return mergedCategories.sort();
+      });
+
+      setHasMore(uniqueNewProducts.length > 0);
+      setPage(currentPage);
     } catch (error) {
-      console.error('Error fetching products:', error);
-      setError(error.message || 'Failed to fetch products');
+      console.error("Error fetching products:", error);
+      setError(error.message || "Failed to fetch products");
       setHasMore(false);
     } finally {
       setLoading(false);
     }
-};
+  };
+
+  const fetchUserData = async () => {
+    try {
+      const response = await api.get(`/users/${userId}`);
+      setUserData(response.data);
+      setBidPercentages(
+        response.data.bidPercentages?.length > 0
+          ? response.data.bidPercentages
+          : [10, 15, 20]
+      );
+    } catch (error) {
+      console.error("Error al obtener datos del usuario:", error);
+    }
+  };
 
   useEffect(() => {
-    // Reset and fetch first page when filters change
+    if (userId) {
+      fetchUserData();
+    }
+  }, [userId]);
+
+  const calculateFirstSuggestedBid = (currentPrice, startingPrice) => {
+    const percentage = bidPercentages[0]; // Usar el primer porcentaje
+    return Math.ceil((currentPrice + startingPrice * (percentage / 100)) / 5) * 5;
+  };
+
+  const handleBid = async (product, bidAmount) => {
+    if (isBidding) {
+      Alert.alert("Espera", "Debes esperar 3 segundos antes de realizar otra puja.");
+      return;
+    }
+
+    try {
+      if (!userId) {
+        navigation.navigate("Login");
+        return;
+      }
+
+      const minBid = product.currentPrice || product.startingPrice;
+
+      // Validación para pujas manuales
+      if (bidAmount > minBid * 4) {
+        Alert.alert(
+          "Error",
+          `La puja no puede ser mayor a 4 veces la última puja (${minBid * 4}).`
+        );
+        return;
+      }
+
+      if (bidAmount <= minBid) {
+        Alert.alert(
+          "Error",
+          `La puja debe ser mayor a la puja actual (${minBid}).`
+        );
+        return;
+      }
+
+      const bidData = {
+        productId: product._id,
+        userId,
+        bidAmount: bidAmount,
+        timestamp: new Date(),
+      };
+
+      if (socket) {
+        socket.emit('newBid', {
+          ...bidData,
+          userName: 'Usuario Actual', // Reemplaza con el nombre real del usuario
+        });
+      }
+
+      await api.post(`/bids/${product._id}/bid-j`, bidData);
+
+      // Deshabilitar la puja por 3 segundos
+      setIsBidding(true);
+      setTimeout(() => {
+        setIsBidding(false);
+      }, 3000);
+    } catch (error) {
+      console.error('Error en la puja:', error);
+      Alert.alert("Error", error.response?.data?.message || "Error al pujar");
+    }
+  };
+
+  useEffect(() => {
     setPage(1);
     setHasMore(true);
     fetchProducts(1);
   }, [selectedType, selectedCategory]);
 
   useEffect(() => {
-    // Initial fetch
     fetchProducts(1);
   }, []);
 
   useEffect(() => {
-    // Filtrar los productos por el término de búsqueda
     const lowercasedTerm = searchTerm.toLowerCase();
     const filtered = products.filter(
       (product) =>
-        product.name.toLowerCase().includes(lowercasedTerm) ||
-        product.description?.toLowerCase().includes(lowercasedTerm)
+        (product.name.toLowerCase().includes(lowercasedTerm) ||
+          product.description?.toLowerCase().includes(lowercasedTerm)) &&
+        (selectedCategory === "" ||
+          !selectedCategory ||
+          product.category === selectedCategory)
     );
     setFilteredProducts(filtered);
-  }, [searchTerm, products]);
+  }, [searchTerm, products, selectedCategory]);
 
-  const handleLoadMore = () => {
-    if (!loading && hasMore) {
-      fetchProducts(page + 1);
-    }
+  const handleCategoryChange = (value) => {
+    setSelectedCategory(value);
+    setProducts([]);
+    setPage(1);
+    setHasMore(true);
+    setFilteredProducts([]);
   };
 
-  const keyExtractor = useCallback((item, index) => {
-    // Usar _id como clave primaria, si no existe usar un índice único
-    return item._id || `product-${index}`;
-  }, []);
+  const renderProductCard = ({ item: product }) => {
+    const firstSuggestedBid = calculateFirstSuggestedBid(
+      product.currentPrice || product.startingPrice,
+      product.startingPrice
+    );
 
-
- const handleBid = (product) => {
-    setSelectedProduct(product);
-    setBidAmount('');
-    setBidError('');
-    setBidModalVisible(true);
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 300,
-      easing: Easing.ease,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const submitBid = async () => {
-    if (!bidAmount || isNaN(bidAmount)) {
-      setBidError('Por favor, ingrese un monto válido');
-      return;
-    }
-
-    const currentBid = parseFloat(bidAmount);
-    const minBid = selectedProduct.currentPrice || selectedProduct.startingPrice;
-
-    if (currentBid <= minBid) {
-      setBidError(`La puja debe ser mayor a ${minBid}`);
-      return;
-    }
-
-    try {
-      // Implement your bid submission logic here
-      console.log('Submitting bid:', currentBid);
-      setBidModalVisible(false);
-      // You might want to refresh the products list after a successful bid
-    } catch (error) {
-      setBidError('Error al realizar la puja. Por favor, intente nuevamente.');
-    }
-  };
-
-  const renderBidModal = () => (
-    <Modal
-      animationType="fade"
-      transparent={true}
-      visible={bidModalVisible}
-      onRequestClose={() => setBidModalVisible(false)}
-    >
-      <View style={styles.modalOverlay}>
-        <Animated.View 
-          style={[
-            styles.modalContent,
-            {
-              opacity: fadeAnim,
-              transform: [{
-                scale: fadeAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.9, 1],
-                }),
-              }],
-            },
-          ]}
-        >
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Realizar Puja</Text>
-            <TouchableOpacity 
-              onPress={() => setBidModalVisible(false)}
-              style={styles.closeButton}
+    return (
+      <View style={styles.card}>
+        <Image
+          source={{
+            uri: product.images?.[0] || "https://via.placeholder.com/80",
+          }}
+          style={styles.cardImage}
+          resizeMode="cover"
+        />
+        <View style={styles.cardDetails}>
+          <View style={styles.cardHeader}>
+            <Text
+              style={styles.cardTitle}
+              numberOfLines={1}
+              ellipsizeMode="tail"
             >
-              <MaterialIcons name="close" size={24} color="#1a3b6e" />
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.modalBody}>
-            <Text style={styles.productName}>{selectedProduct?.name}</Text>
-            <Text style={styles.currentPrice}>
-              Precio actual: ${selectedProduct?.currentPrice || selectedProduct?.startingPrice}
+              {product.name || "Unnamed Product"}
             </Text>
-            
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Tu puja ($)</Text>
-              <TextInput
-                style={styles.bidInput}
-                keyboardType="numeric"
-                value={bidAmount}
-                onChangeText={(text) => {
-                  setBidAmount(text);
-                  setBidError('');
-                }}
-                placeholder="Ingrese el monto"
-                placeholderTextColor="#a0a0a0"
-              />
-            </View>
-            
-            {bidError ? <Text style={styles.errorText}>{bidError}</Text> : null}
-            
-            <TouchableOpacity
-              style={styles.submitButton}
-              onPress={submitBid}
-            >
-              <Text style={styles.submitButtonText}>Confirmar Puja</Text>
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
-      </View>
-    </Modal>
-  );
-
-  const renderProductCard = ({ item: product }) => (
-    <View style={styles.card}>
-      <Image
-        source={{ uri: product.images?.[0] || 'https://via.placeholder.com/80' }}
-        style={styles.cardImage}
-      />
-      <View style={styles.cardDetails}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>{product.name || 'Unnamed Product'}</Text>
-        </View>
-        <Text style={styles.cardDescription}>
-          {product.description || 'No description available'}
-        </Text>
-        <View style={styles.cardFooter}>
-          <View style={styles.priceContainer}>
-            <Text style={styles.priceLabel}>Precio actual:</Text>
-            <Text style={styles.cardPrice}>
-              ${product.currentPrice || product.startingPrice || 'N/A'}
-            </Text>
-          </View>
-          <Text style={styles.cardDate}>
-            Finaliza: {product.auctionEndTime
-              ? new Date(product.auctionEndTime).toLocaleString()
-              : 'No end date'}
-          </Text>
-          <View style={styles.actionButtons}>
-            <TouchableOpacity
-              style={styles.viewButton}
-              onPress={() => navigation.navigate('ProductDetails', { productId: product._id })}
-            >
-              <Text style={styles.viewButtonText}>Ver detalles</Text>
-            </TouchableOpacity>
-            {product.type === 'subasta' && (
-              <TouchableOpacity
-                style={styles.bidButton}
-                onPress={() => handleBid(product)}
-              >
-                <Text style={styles.bidButtonText}>Pujar</Text>
-              </TouchableOpacity>
+            {product.status === "active" && (
+              <View style={styles.statusBadge}>
+                <Text style={styles.statusText}>Activo</Text>
+              </View>
             )}
           </View>
+
+          {product.category && (
+            <Text style={styles.cardCategory}>
+              Categoría: {product.category}
+            </Text>
+          )}
+
+          <Text
+            style={styles.cardDescription}
+            numberOfLines={2}
+            ellipsizeMode="tail"
+          >
+            {product.description || "No description available"}
+          </Text>
+          <View style={styles.cardFooter}>
+            <View style={styles.priceContainer}>
+              <Text style={styles.priceLabel}>Precio actual:</Text>
+              <Text style={styles.cardPrice}>
+                ${product.currentPrice || product.startingPrice || "N/A"}
+              </Text>
+            </View>
+            <View style={styles.timeContainer}>
+              <FontAwesome
+                name="clock-o"
+                size={16}
+                color="#666"
+                style={styles.timeIcon}
+              />
+              <Text style={styles.cardDate}>
+                {product.auctionEndTime
+                  ? new Date(product.auctionEndTime).toLocaleString("es-ES", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                  : "No end date"}
+              </Text>
+            </View>
+            <View style={styles.actionButtons}>
+              <TouchableOpacity
+                style={styles.viewButton}
+                onPress={() =>
+                  navigation.navigate("ProductDetails", {
+                    productId: product._id,
+                  })
+                }
+              >
+                <MaterialIcons name="visibility" size={18} color="#fff" />
+                <Text style={styles.viewButtonText}>Ver detalles</Text>
+              </TouchableOpacity>
+              {product.type === "subasta" && (
+                <TouchableOpacity
+                  style={styles.bidButton}
+                  onPress={() => handleBid(product, firstSuggestedBid)}
+                  disabled={isBidding}
+                >
+                  {isBidding ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <MaterialIcons name="gavel" size={18} color="#fff" />
+                      <Text style={styles.bidButtonText}>
+                        Pujar ({firstSuggestedBid})
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
         </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   return (
     <View style={styles.container}>
-      {/* Header */}
+      <StatusBar backgroundColor="#1a3b6e" barStyle="light-content" />
+
       <View style={styles.header}>
         <Text style={styles.title}>WinningBid</Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.menuButton}
           onPress={() => navigation.openDrawer()}
         >
-          <Ionicons name="menu" size={24} color="#1a3b6e" />
+          <Ionicons name="menu" size={24} color="#fff" />
         </TouchableOpacity>
       </View>
 
-      {/* Search */}
       <View style={styles.searchContainer}>
-        <MaterialIcons name="search" size={20} color="#a0a0a0" style={styles.searchIcon} />
+        <MaterialIcons
+          name="search"
+          size={20}
+          color="#a0a0a0"
+          style={styles.searchIcon}
+        />
         <TextInput
           placeholder="Buscar subastas..."
           style={styles.searchInput}
           value={searchTerm}
           onChangeText={setSearchTerm}
+          placeholderTextColor="#a0a0a0"
         />
       </View>
 
-      {/* Main Content */}
-      <View style={styles.mainContent}>
-        <Text style={styles.sectionTitle}>Subastas Activas</Text>
+      <View style={styles.filtersContainer}>
+        <View style={styles.pickerWrapper}>
+          <Picker
+            selectedValue={selectedCategory}
+            style={styles.picker}
+            onValueChange={handleCategoryChange}
+            dropdownIconColor="#1a3b6e"
+          >
+            <Picker.Item label="Todas las categorías" value="" />
+            {categories.map((category, index) => (
+              <Picker.Item key={index} label={category} value={category} />
+            ))}
+          </Picker>
+        </View>
+      </View>
 
-        {/* Filters */}
-        <View style={styles.filtersContainer}>
-          <View style={styles.pickerWrapper}>
-            <Picker
-              selectedValue={selectedType}
-              style={styles.picker}
-              onValueChange={setSelectedType}
-            >
-              <Picker.Item label="Todos los tipos" value="" />
-              <Picker.Item label="Electrónicos" value="electronics" />
-              <Picker.Item label="Deporte" value="sport" />
-            </Picker>
-          </View>
-          <View style={styles.pickerWrapper}>
-            <Picker
-              selectedValue={selectedCategory}
-              style={styles.picker}
-              onValueChange={setSelectedCategory}
-            >
-              <Picker.Item label="Todas las categorías" value="" />
-              <Picker.Item label="Gaming" value="gaming" />
-              <Picker.Item label="Relojes" value="watches" />
-            </Picker>
-          </View>
+      <View style={styles.mainContent}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Subastas Activas</Text>
+          {loading && (
+            <ActivityIndicator
+              size="small"
+              color="#1a3b6e"
+              style={styles.smallLoader}
+            />
+          )}
         </View>
 
-        {/* Error Handling */}
         {error && (
           <View style={styles.errorContainer}>
+            <MaterialIcons name="error-outline" size={24} color="#E53935" />
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
 
-        {/* Product List */}
         <FlatList
           data={filteredProducts}
           renderItem={renderProductCard}
-          keyExtractor={keyExtractor}
-          onEndReached={handleLoadMore}
-          onEndReachedThreshold={0.5}
-          ListFooterComponent={() => (
-            loading ? <ActivityIndicator size="large" color="#1a3b6e" /> : null
-          )}
-          ListEmptyComponent={() => (
+          keyExtractor={(item) => item._id.toString()}
+          contentContainerStyle={styles.flatListContent}
+          showsVerticalScrollIndicator={false}
+          ListFooterComponent={() =>
+            loading && page > 1 ? (
+              <ActivityIndicator
+                size="large"
+                color="#1a3b6e"
+                style={styles.loader}
+              />
+            ) : null
+          }
+          ListEmptyComponent={() =>
             !loading && (
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>No hay subastas disponibles</Text>
+                <MaterialIcons name="search-off" size={48} color="#1a3b6e" />
+                <Text style={styles.emptyText}>
+                  No hay subastas disponibles
+                </Text>
+                <Text style={styles.emptySubtext}>
+                  Intenta con otros filtros
+                </Text>
               </View>
             )
-          )}
+          }
         />
       </View>
-
-      {renderBidModal()}
     </View>
   );
 }
@@ -356,276 +479,286 @@ export default function HomeScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#f0f2f5",
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 16,
-    paddingTop: 48,
+    paddingTop: Platform.OS === "ios" ? 44 : 24,
     paddingBottom: 16,
-    backgroundColor: '#fff',
-    elevation: 2,
-    shadowColor: '#000',
+    backgroundColor: "#1a3b6e",
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    elevation: 4,
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.2,
     shadowRadius: 4,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1a3b6e',
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#fff",
   },
   menuButton: {
     padding: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 8,
   },
   searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    margin: 16,
-    backgroundColor: '#f5f5f5',
+    margin: 12,
+    backgroundColor: "#fff",
     borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    elevation: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#e8e8e8",
   },
   searchIcon: {
-    marginRight: 12,
+    marginRight: 8,
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
-    color: '#333',
+    fontSize: 14,
+    color: "#333",
+    paddingVertical: 6,
+  },
+  filtersContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginHorizontal: 16,
+    marginTop: 16,
+  },
+  pickerWrapper: {
+    flex: 1,
+    marginHorizontal: 8,
+    borderWidth: 1,
+    borderColor: "#1a3b6e",
+    borderRadius: 8,
+  },
+  picker: {
+    height: 50,
+    width: "100%",
+    color: "#1a3b6e",
+    fontSize: 14,
   },
   mainContent: {
     flex: 1,
+    marginTop: 16,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 16,
+    marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1a3b6e',
-    marginVertical: 16,
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#1a3b6e",
   },
-  picker: {
-    height: 48,
+  smallLoader: {
+    marginLeft: 8,
+  },
+  errorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+  },
+  errorText: {
+    marginLeft: 8,
+    color: "#E53935",
+    fontSize: 16,
+  },
+  flatListContent: {
+    paddingHorizontal: 16,
   },
   card: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
+    marginBottom: 12,
+    backgroundColor: "#fff",
     borderRadius: 16,
-    marginBottom: 16,
-    padding: 16,
-    elevation: 2,
-    shadowColor: '#000',
+    overflow: "hidden",
+    elevation: 3,
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 3,
   },
   cardImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 12,
-    marginRight: 16,
+    width: "100%",
+    height: 160,
+    backgroundColor: "#f3f3f3",
   },
   cardDetails: {
-    flex: 1,
+    padding: 12,
   },
   cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 8,
   },
   cardTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1a3b6e',
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1a3b6e",
     flex: 1,
-    marginRight: 8,
+  },
+  statusBadge: {
+    backgroundColor: "#4CAF50",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 8,
+  },
+  statusText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "600",
   },
   cardDescription: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 12,
+    fontSize: 13,
+    color: "#666",
+    marginBottom: 8,
+    lineHeight: 18,
   },
   priceContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
+    flexDirection: "row",
+    alignItems: "baseline",
+    marginBottom: 8,
+    backgroundColor: "#f8f9fa",
+    padding: 8,
+    borderRadius: 8,
   },
   priceLabel: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: 12,
+    color: "#666",
     marginRight: 4,
   },
   cardPrice: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1a3b6e',
+    fontWeight: "700",
+    color: "#1a3b6e",
+  },
+  timeContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    backgroundColor: "#f8f9fa",
+    padding: 8,
+    borderRadius: 8,
+  },
+  timeIcon: {
+    marginRight: 6,
   },
   cardDate: {
     fontSize: 12,
-    color: '#666',
-    marginBottom: 12,
+    color: "#666",
   },
   actionButtons: {
-    flexDirection: 'row',
-    gap: 12,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 8,
+    gap: 8,
   },
   viewButton: {
-    flex: 1,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: '#1a3b6e',
+    backgroundColor: "#1a3b6e",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 8,
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    flex: 1,
   },
   viewButtonText: {
-    color: '#1a3b6e',
-    fontWeight: '600',
+    color: "#fff",
+    fontWeight: "600",
+    marginLeft: 4,
+    fontSize: 13,
   },
   bidButton: {
-    flex: 1,
-    paddingVertical: 10,
-    backgroundColor: '#1a3b6e',
+    backgroundColor: "#ff4757",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 8,
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    flex: 1,
+  },
+  bidButtonDisabled: {
+    backgroundColor: "#ffb2b9",
   },
   bidButtonText: {
-    color: '#fff',
-    fontWeight: '600',
+    color: "#fff",
+    fontWeight: "600",
+    marginLeft: 4,
+    fontSize: 13,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    width: '90%',
-    maxWidth: 400,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1a3b6e',
-  },
-  closeButton: {
-    padding: 4,
-  },
-  modalBody: {
-    padding: 16,
-  },
-  productName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
-  },currentPrice: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 16,
-  },
-  inputContainer: {
-    marginBottom: 16,
-  },
-  inputLabel: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 8,
-  },
-  bidInput: {
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    color: '#333',
-    backgroundColor: '#f5f5f5',
-  },
-  errorText: {
-    color: '#dc3545',
-    fontSize: 14,
-    marginBottom: 16,
-  },
-  submitButton: {
-    backgroundColor: '#1a3b6e',
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  submitButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  errorContainer: {
-    padding: 16,
-    backgroundColor: '#fff3f3',
-    borderRadius: 8,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#ffcdd2',
-  },
-  errorText: {
-    color: '#dc3545',
-    textAlign: 'center',
-    fontSize: 14,
+  bidLoader: {
+    marginLeft: 4,
   },
   emptyContainer: {
-    padding: 24,
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    marginTop: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    margin: 12,
   },
   emptyText: {
-    color: '#666',
     fontSize: 16,
-    textAlign: 'center',
-  },filtersContainer: {
-    flexDirection: 'row',
-    marginVertical: 20,  // Aumentado el margen vertical
-    marginHorizontal: 16,
-    gap: 16, // Aumentado el espacio entre los pickers
+    fontWeight: "600",
+    color: "#1a3b6e",
+    marginTop: 12,
+    textAlign: "center",
   },
-  pickerWrapper: {
-    flex: 1,
-    height: 50,  // Altura específica para el contenedor
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
+  emptySubtext: {
+    fontSize: 13,
+    color: "#666",
+    marginTop: 4,
+    textAlign: "center",
+  },
+  errorContainer: {
+    backgroundColor: "#fee8e8",
+    padding: 12,
     borderRadius: 12,
-    backgroundColor: '#fff',
-    overflow: 'hidden',
-    justifyContent: 'center',  // Centra el contenido verticalmente
-    elevation: 2,  // Añade sombra en Android
-    shadowColor: '#000',  // Sombras para iOS
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#fcc",
   },
-  picker: {
-    height: 50,  // Altura específica para el picker
-    width: '100%',
-    color: '#1a3b6e',
-    fontWeight: '500',
+  errorText: {
+    color: "#d32f2f",
+    marginLeft: 8,
+    flex: 1,
+    fontSize: 13,
+  },
+  cardCategory: {
+    fontSize: 12,
+    color: "#666",
+    marginBottom: 4,
+  },
+  loader: {
+    marginVertical: 16,
+  },
+  suggestedBidsContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 20,
+    gap: 8,
   },
 });

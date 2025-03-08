@@ -55,6 +55,7 @@ export const UserProductsProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Error al conectar con el backend:', error);
+      console.log(error );
       Alert.alert('Error', 'Hubo un problema al añadir el producto.');
     }
   };
