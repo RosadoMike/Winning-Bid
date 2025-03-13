@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext } from "react";
 import {
   View,
   Text,
@@ -11,24 +11,24 @@ import {
   Platform,
   KeyboardAvoidingView,
   ActivityIndicator,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
-import DateTimePickerModal from 'react-native-modal-datetime-picker';
-import { AuthContext } from '../screens/Providers/AuthContext';
-import { UserProductsContext } from '../screens/Providers/UserProductsContex';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
+import DateTimePickerModal from "react-native-modal-datetime-picker";
+import { AuthContext } from "../screens/Providers/AuthContext";
+import { UserProductsContext } from "../screens/Providers/UserProductsContex";
 
 const COLORS = {
-  primary: '#1a3b6e',
-  secondary: '#3d5a80',
-  accent: '#98c1d9',
-  background: '#f8f9fa',
-  white: '#ffffff',
-  text: '#2b2d42',
-  textLight: '#8d99ae',
-  border: '#e0e0e0',
-  error: '#d62828',
-  success: '#2a9d8f',
+  primary: "#1a3b6e",
+  secondary: "#3d5a80",
+  accent: "#98c1d9",
+  background: "#f8f9fa",
+  white: "#ffffff",
+  text: "#2b2d42",
+  textLight: "#8d99ae",
+  border: "#e0e0e0",
+  error: "#d62828",
+  success: "#2a9d8f",
 };
 
 const SPACING = {
@@ -41,19 +41,21 @@ const SPACING = {
 
 export default function MyAuctionsScreen({ navigation }) {
   const { user, isAuthenticated } = useContext(AuthContext);
-  const { userProducts, addProduct, loadUserProducts, deleteProduct } = useContext(UserProductsContext);
+  const { userProducts, addProduct, loadUserProducts, deleteProduct } =
+    useContext(UserProductsContext);
 
-  const [activeTab, setActiveTab] = useState('myAuctions');
+  const [activeTab, setActiveTab] = useState("myAuctions");
   const [loading, setLoading] = useState(false);
   const [isDatePickerVisible, setDatePickerVisibility] = useState(false);
   const [formData, setFormData] = useState({
-    productName: '',
-    description: '',
-    category: '',
-    type: 'subasta',
-    auctionType: 'normal',
-    startingPrice: '',
+    productName: "",
+    description: "",
+    category: "",
+    type: "subasta",
+    auctionType: "normal",
+    startingPrice: "",
     auctionEndTime: new Date(),
+    sellerAddress: "", // Nueva variable para la dirección del vendedor
   });
   const [images, setImages] = useState([]);
 
@@ -65,12 +67,13 @@ export default function MyAuctionsScreen({ navigation }) {
   }, [isAuthenticated]);
 
   const requestPermissions = async () => {
-    if (Platform.OS !== 'web') {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
+    if (Platform.OS !== "web") {
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
         Alert.alert(
-          'Permiso denegado',
-          'Necesitamos permisos para acceder a tu galería de fotos'
+          "Permiso denegado",
+          "Necesitamos permisos para acceder a tu galería de fotos"
         );
       }
     }
@@ -88,14 +91,14 @@ export default function MyAuctionsScreen({ navigation }) {
       if (!result.canceled) {
         const newImages = result.assets.map((asset) => ({
           uri: asset.uri,
-          type: 'image/jpeg',
-          name: asset.uri.split('/').pop(),
+          type: "image/jpeg",
+          name: asset.uri.split("/").pop(),
         }));
         setImages((prevImages) => [...prevImages, ...newImages]);
       }
     } catch (error) {
-      console.error('Error picking images:', error);
-      Alert.alert('Error', 'No se pudieron cargar las imágenes');
+      console.error("Error picking images:", error);
+      Alert.alert("Error", "No se pudieron cargar las imágenes");
     }
   };
 
@@ -126,12 +129,18 @@ export default function MyAuctionsScreen({ navigation }) {
   };
 
   const validateForm = () => {
-    if (!formData.productName || !formData.description || !formData.category || !formData.startingPrice) {
-      Alert.alert('Error', 'Por favor completa todos los campos');
+    if (
+      !formData.productName ||
+      !formData.description ||
+      !formData.category ||
+      !formData.startingPrice ||
+      !formData.sellerAddress
+    ) {
+      Alert.alert("Error", "Por favor completa todos los campos");
       return false;
     }
     if (images.length === 0) {
-      Alert.alert('Error', 'Por favor agrega al menos una imagen');
+      Alert.alert("Error", "Por favor agrega al menos una imagen");
       return false;
     }
     return true;
@@ -142,31 +151,35 @@ export default function MyAuctionsScreen({ navigation }) {
 
     setLoading(true);
     const formDataToSend = new FormData();
-    formDataToSend.append('name', formData.productName);
-    formDataToSend.append('description', formData.description);
-    formDataToSend.append('category', formData.category);
-    formDataToSend.append('type', formData.type);
-    formDataToSend.append('auctionType', formData.auctionType);
-    formDataToSend.append('startingPrice', formData.startingPrice);
-    formDataToSend.append('auctionEndTime', formData.auctionEndTime.toISOString());
+    formDataToSend.append("name", formData.productName);
+    formDataToSend.append("description", formData.description);
+    formDataToSend.append("category", formData.category);
+    formDataToSend.append("type", formData.type);
+    formDataToSend.append("auctionType", formData.auctionType);
+    formDataToSend.append("startingPrice", formData.startingPrice);
+    formDataToSend.append(
+      "auctionEndTime",
+      formData.auctionEndTime.toISOString()
+    );
+    formDataToSend.append("sellerAddress", formData.sellerAddress); // Añadir la dirección del vendedor
 
     // Añadir imágenes
     images.forEach((image) => {
-      formDataToSend.append('images', {
+      formDataToSend.append("images", {
         uri: image.uri,
-        type: 'image/jpeg',
-        name: image.uri.split('/').pop(),
+        type: "image/jpeg",
+        name: image.uri.split("/").pop(),
       });
     });
 
     try {
       await addProduct(formDataToSend);
-      Alert.alert('Éxito', 'Producto creado exitosamente');
+      Alert.alert("Éxito", "Producto creado exitosamente");
       resetForm();
       loadUserProducts();
     } catch (error) {
-      console.error('Error creando el producto:', error);
-      Alert.alert('Error', 'No se pudo crear el producto');
+      console.error("Error creando el producto:", error);
+      Alert.alert("Error", "No se pudo crear el producto");
     } finally {
       setLoading(false);
     }
@@ -174,38 +187,39 @@ export default function MyAuctionsScreen({ navigation }) {
 
   const resetForm = () => {
     setFormData({
-      productName: '',
-      description: '',
-      category: '',
-      type: 'subasta',
-      auctionType: 'normal',
-      startingPrice: '',
+      productName: "",
+      description: "",
+      category: "",
+      type: "subasta",
+      auctionType: "normal",
+      startingPrice: "",
       auctionEndTime: new Date(),
+      sellerAddress: "", // Resetear la dirección del vendedor
     });
     setImages([]);
   };
 
   const handleDeleteAuction = (auctionId) => {
     Alert.alert(
-      'Eliminar Subasta',
-      '¿Estás seguro que deseas eliminar esta subasta?',
+      "Eliminar Subasta",
+      "¿Estás seguro que deseas eliminar esta subasta?",
       [
         {
-          text: 'Cancelar',
-          style: 'cancel',
+          text: "Cancelar",
+          style: "cancel",
         },
         {
-          text: 'Eliminar',
-          style: 'destructive',
+          text: "Eliminar",
+          style: "destructive",
           onPress: async () => {
             try {
               setLoading(true);
               await deleteProduct(auctionId);
-              Alert.alert('Éxito', 'Subasta eliminada correctamente');
+              Alert.alert("Éxito", "Subasta eliminada correctamente");
               await loadUserProducts();
             } catch (error) {
-              console.error('Error eliminando la subasta:', error);
-              Alert.alert('Error', 'No se pudo eliminar la subasta');
+              console.error("Error eliminando la subasta:", error);
+              Alert.alert("Error", "No se pudo eliminar la subasta");
             } finally {
               setLoading(false);
             }
@@ -218,11 +232,11 @@ export default function MyAuctionsScreen({ navigation }) {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <View style={styles.header1}>
         <Text style={styles.title1}>WinningBid</Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.menuButton}
           onPress={() => navigation.openDrawer()}
         >
@@ -232,24 +246,37 @@ export default function MyAuctionsScreen({ navigation }) {
 
       <View style={styles.tabContainer}>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'myAuctions' && styles.activeTab]}
-          onPress={() => setActiveTab('myAuctions')}
+          style={[styles.tab, activeTab === "myAuctions" && styles.activeTab]}
+          onPress={() => setActiveTab("myAuctions")}
         >
-          <Text style={[styles.tabText, activeTab === 'myAuctions' && styles.activeTabText]}>
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "myAuctions" && styles.activeTabText,
+            ]}
+          >
             Mis Subastas
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'createAuction' && styles.activeTab]}
-          onPress={() => setActiveTab('createAuction')}
+          style={[
+            styles.tab,
+            activeTab === "createAuction" && styles.activeTab,
+          ]}
+          onPress={() => setActiveTab("createAuction")}
         >
-          <Text style={[styles.tabText, activeTab === 'createAuction' && styles.activeTabText]}>
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "createAuction" && styles.activeTabText,
+            ]}
+          >
             Crear Subasta
           </Text>
         </TouchableOpacity>
       </View>
 
-      {activeTab === 'myAuctions' ? (
+      {activeTab === "myAuctions" ? (
         <ScrollView
           style={styles.auctionsContainer}
           contentContainerStyle={{ paddingBottom: SPACING.xl }}
@@ -271,15 +298,22 @@ export default function MyAuctionsScreen({ navigation }) {
                     style={styles.deleteButton}
                     onPress={() => handleDeleteAuction(auction._id)}
                   >
-                    <Ionicons name="trash-outline" size={24} color={COLORS.error} />
+                    <Ionicons
+                      name="trash-outline"
+                      size={24}
+                      color={COLORS.error}
+                    />
                   </TouchableOpacity>
                 </View>
-                <Text style={styles.auctionDescription}>{auction.description}</Text>
+                <Text style={styles.auctionDescription}>
+                  {auction.description}
+                </Text>
                 <Text style={styles.auctionPrice}>
                   Precio inicial: ${auction.startingPrice}
                 </Text>
                 <Text style={styles.auctionEndTime}>
-                  Finaliza: {new Date(auction.auctionEndTime).toLocaleDateString()}
+                  Finaliza:{" "}
+                  {new Date(auction.auctionEndTime).toLocaleDateString()}
                 </Text>
               </View>
             </View>
@@ -295,7 +329,7 @@ export default function MyAuctionsScreen({ navigation }) {
             placeholder="Nombre del producto"
             placeholderTextColor={COLORS.textLight}
             value={formData.productName}
-            onChangeText={(text) => handleInputChange('productName', text)}
+            onChangeText={(text) => handleInputChange("productName", text)}
           />
           <TextInput
             style={[styles.input, styles.textArea]}
@@ -304,14 +338,14 @@ export default function MyAuctionsScreen({ navigation }) {
             multiline
             numberOfLines={4}
             value={formData.description}
-            onChangeText={(text) => handleInputChange('description', text)}
+            onChangeText={(text) => handleInputChange("description", text)}
           />
           <TextInput
             style={styles.input}
             placeholder="Categoría"
             placeholderTextColor={COLORS.textLight}
             value={formData.category}
-            onChangeText={(text) => handleInputChange('category', text)}
+            onChangeText={(text) => handleInputChange("category", text)}
           />
           <TextInput
             style={styles.input}
@@ -319,15 +353,22 @@ export default function MyAuctionsScreen({ navigation }) {
             placeholderTextColor={COLORS.textLight}
             keyboardType="numeric"
             value={formData.startingPrice}
-            onChangeText={(text) => handleInputChange('startingPrice', text)}
+            onChangeText={(text) => handleInputChange("startingPrice", text)}
           />
- 
+          <TextInput
+            style={styles.input}
+            placeholder="Dirección del vendedor"
+            placeholderTextColor={COLORS.textLight}
+            value={formData.sellerAddress}
+            onChangeText={(text) => handleInputChange("sellerAddress", text)}
+          />
           <TouchableOpacity
             style={styles.dateButton}
             onPress={showDatePickerComponent}
           >
             <Text style={styles.dateButtonText}>
-              Fecha de finalización: {formData.auctionEndTime.toLocaleDateString()}
+              Fecha de finalización:{" "}
+              {formData.auctionEndTime.toLocaleDateString()}
             </Text>
           </TouchableOpacity>
 
@@ -361,7 +402,11 @@ export default function MyAuctionsScreen({ navigation }) {
                   style={styles.removeImageButton}
                   onPress={() => removeImage(index)}
                 >
-                  <Ionicons name="close-circle" size={24} color={COLORS.error} />
+                  <Ionicons
+                    name="close-circle"
+                    size={24}
+                    color={COLORS.error}
+                  />
                 </TouchableOpacity>
               </View>
             ))}
@@ -388,7 +433,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
-  },  percentageButton: {
+  },
+  percentageButton: {
     flex: 1,
     backgroundColor: "#6C5CE7",
     padding: 8,
@@ -402,26 +448,26 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: SPACING.sm,
     backgroundColor: COLORS.white,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 2,
   },
   header1: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 50 : 30,
+    paddingTop: Platform.OS === "ios" ? 50 : 30,
     paddingBottom: 16,
-    backgroundColor: '#1a3b6e',
+    backgroundColor: "#1a3b6e",
     elevation: 4,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
@@ -430,10 +476,9 @@ const styles = StyleSheet.create({
     padding: SPACING.xs,
     borderRadius: SPACING.xs,
   },
-  
   title: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.text,
     marginLeft: SPACING.sm,
   },
@@ -441,7 +486,7 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   tabContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     backgroundColor: COLORS.white,
     padding: SPACING.xs,
     gap: SPACING.xs,
@@ -449,7 +494,7 @@ const styles = StyleSheet.create({
   tab: {
     flex: 1,
     padding: SPACING.sm,
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: 8,
     backgroundColor: COLORS.background,
   },
@@ -460,7 +505,7 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 14,
     color: COLORS.text,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   activeTabText: {
     color: COLORS.white,
@@ -475,8 +520,8 @@ const styles = StyleSheet.create({
   },
   title1: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontWeight: "bold",
+    color: "#fff",
   },
   input: {
     backgroundColor: COLORS.white,
@@ -490,7 +535,7 @@ const styles = StyleSheet.create({
   },
   textArea: {
     height: 80,
-    textAlignVertical: 'top',
+    textAlignVertical: "top",
   },
   dateButton: {
     backgroundColor: COLORS.white,
@@ -499,18 +544,18 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.sm,
     borderWidth: 1,
     borderColor: COLORS.border,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
   dateButtonText: {
     color: COLORS.text,
     fontSize: 14,
   },
   imagePickerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: COLORS.primary,
     borderRadius: 8,
     padding: SPACING.sm,
@@ -519,16 +564,16 @@ const styles = StyleSheet.create({
   imagePickerText: {
     marginLeft: SPACING.xs,
     color: COLORS.white,
-    fontWeight: '500',
+    fontWeight: "500",
     fontSize: 14,
   },
   imagePreviewContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     marginBottom: SPACING.sm,
   },
   imagePreview: {
     marginRight: SPACING.xs,
-    position: 'relative',
+    position: "relative",
   },
   previewImage: {
     width: 80,
@@ -536,7 +581,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   removeImageButton: {
-    position: 'absolute',
+    position: "absolute",
     top: -6,
     right: -6,
     backgroundColor: COLORS.white,
@@ -547,38 +592,38 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     borderRadius: 8,
     padding: SPACING.sm,
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: SPACING.md,
     elevation: 2,
   },
   submitButtonText: {
     color: COLORS.white,
-    fontWeight: '600',
+    fontWeight: "600",
     fontSize: 15,
   },
   auctionCard: {
     backgroundColor: COLORS.white,
     borderRadius: 8,
     marginBottom: SPACING.sm,
-    overflow: 'hidden',
+    overflow: "hidden",
     elevation: 2,
   },
   auctionImage: {
-    width: '100%',
+    width: "100%",
     height: 160,
   },
   auctionDetails: {
     padding: SPACING.sm,
   },
   auctionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: SPACING.xs,
   },
   auctionTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.text,
     flex: 1,
     marginRight: SPACING.xs,
@@ -591,7 +636,7 @@ const styles = StyleSheet.create({
   },
   auctionPrice: {
     fontSize: 15,
-    fontWeight: '500',
+    fontWeight: "500",
     color: COLORS.primary,
     marginBottom: SPACING.xs,
   },
@@ -604,7 +649,7 @@ const styles = StyleSheet.create({
   },
   pujasTitle: {
     fontSize: 15,
-    fontWeight: '500',
+    fontWeight: "500",
     color: COLORS.text,
     marginBottom: SPACING.sm,
     marginTop: SPACING.sm,
@@ -617,17 +662,17 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.sm,
   },
   pujaInputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   pujaLabel: {
     fontSize: 14,
     color: COLORS.text,
-    width: '30%',
+    width: "30%",
   },
   pujaInput: {
-    width: '65%',
+    width: "65%",
     marginBottom: 0,
     backgroundColor: COLORS.background,
   },

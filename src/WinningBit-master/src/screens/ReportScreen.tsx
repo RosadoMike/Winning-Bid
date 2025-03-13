@@ -36,7 +36,7 @@ const ReportScreen = () => {
   }, [isAuthenticated]);
 
   // Extract optional parameters from route
-  const { reportedId, productId } = route.params || {};
+  const {  productId } = route.params || {};
 
   // State management
   const [description, setDescription] = useState('');
@@ -102,7 +102,6 @@ const ReportScreen = () => {
     try {
       // Prepare form data for multipart upload
       const formData = new FormData();
-      formData.append('reportedId', reportedId);
       formData.append('productId', productId);
       formData.append('description', description);
       formData.append('category', selectedCategory);
@@ -122,6 +121,7 @@ const ReportScreen = () => {
           'Content-Type': 'multipart/form-data',
         },
       });
+
 
       if (response.data) {
         Alert.alert(

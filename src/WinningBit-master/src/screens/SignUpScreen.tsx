@@ -11,6 +11,7 @@ import {
   ScrollView
 } from 'react-native';
 import api from "../screens/api/api";
+import axios from 'axios';
 
 export default function SignUpScreen({ navigation }: any) {
   const [email, setEmail] = useState('');
@@ -39,7 +40,7 @@ export default function SignUpScreen({ navigation }: any) {
     }
 
     try {
-      const response = await api.post('/users/', {
+      const response = await axios.post('http://192.168.1.207:5000/api/users/', {
         name,
         email,
         password,
@@ -60,7 +61,12 @@ export default function SignUpScreen({ navigation }: any) {
       }
     } catch (error) {
       console.error('Error al crear usuario:', error);
-      Alert.alert('Error', 'No se pudo crear el usuario');
+      
+      if (error.response && error.response.status === 401) {
+        Alert.alert('Error', 'El correo electrónico ya está en uso');
+      } else {
+        Alert.alert('Error', 'No se pudo crear el usuario');
+      }
     }
   };
 
